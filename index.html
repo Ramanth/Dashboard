@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drag and Drop Notes</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        .container {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .column {
+            flex: 1;
+            background-color: #f0f0f0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin: 10px;
+        }
+
+        .card {
+            background-color: #fff;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            cursor: grab;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="column" id="column1" ondrop="drop(event)" ondragover="allowDrop(event)">
+            <h2>Stage 1</h2>
+        </div>
+        <div class="column" id="column2" ondrop="drop(event)" ondragover="allowDrop(event)">
+            <h2>Stage 2</h2>
+        </div>
+        <div class="column" id="column3" ondrop="drop(event)" ondragover="allowDrop(event)">
+            <h2>Stage 3</h2>
+        </div>
+    </div>
+
+    <div>
+        <input type="text" id="noteText" placeholder="Enter note text">
+        <button onclick="createCard()">Create Card</button>
+
+        <button onclick="loadStateFromLocalStorage()">Load</button>
+        <button onclick="saveStateToLocalStorage()">Save</button>
+    </div>
+
+    <script>
+        let cardId = 1;
+
+        function createCard() {
+            const noteText = document.getElementById("noteText").value.trim();
+            if (noteText !== "") {
+                const card = document.createElement("div");
+                card.className = "card";
+                card.draggable = true;
+                card.id = "card" + cardId++;
+                card.setAttribute("ondragstart", "drag(event)");
+                card.innerText = noteText;
+                document.getElementById("column1").appendChild(card);
+                document.getElementById("noteText").value = "";
+            }
+        }
+
+
+        function allowDrop(event) {
+            event.preventDefault();
+        }
+
+        function drag(event) {
+            event.dataTransfer.setData("text", event.target.id);
+        }
+
+        function drop(event) {
+            event.preventDefault();
+            const data = event.dataTransfer.getData("text");
+            const targetColumn = event.target;
+            if (targetColumn.className === "column") {
+                targetColumn.appendChild(document.getElementById(data));
+            }
+        }
+
+        // Function to save the state to local storage
+        function saveStateToLocalStorage() {
+            const columns = document.querySelectorAll('.column');
+            const state = {};
+
+            columns.forEach(column => {
+                //const stage = column.querySelector('h2').textContent;
+                const stage = column.id
+                const cards = Array.from(column.querySelectorAll('.card')).map(card => card.textContent);
+                state[stage] = cards;
+            });
+
+            localStorage.setItem('cardState', JSON.stringify(state));
+            createCardOnServer(state)
+
+        }
+
+        function loadStateFromLocalStorage() {
+            //const stateJSON = localStorage.getItem('cardState');
+            getNotes()
+                .then((stateJSON) => {
+                    if (stateJSON) {
+                        // const state = JSON.parse(stateJSON);
+                        const state = stateJSON[0]
+
+                        Object.keys(state).forEach((stage) => {
+                            const columnId = stage.toLowerCase().replace(' ', '');
+                            const column = document.getElementById(columnId);
+
+                            if (column) {
+                                state[stage].forEach((noteText) => {
+                                    const card = document.createElement('div');
+                                    card.className = 'card';
+                                    card.draggable = true;
+                                    card.id = 'card' + cardId++;
+                                    card.setAttribute('ondragstart', 'drag(event)');
+                                    card.innerText = noteText;
+                                    column.appendChild(card);
+                                });
+                            }
+                        });
+                    }
+                })
+                .catch((error) => {
+                    console.error('Error:', error);
+                });
+        }
+
+
+        function saveCards() {
+
+        }
+
+        function createCardOnServer(cardText) {
+            const apiUrl = 'http://localhost:3000/notes';
+            const requestData = {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(cardText), // Assuming you want to send card text as JSON
+            };
+
+            fetch(apiUrl, requestData)
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP Error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then((data) => {
+                    console.log('Card created successfully:', data);
+                    // Optionally, you can perform actions after the card is created
+                })
+                .catch((error) => {
+                    console.error('Error creating card:', error);
+                    // Handle the error as needed
+                });
+        }
+
+        function getNotes() {
+            const apiUrl = 'http://localhost:3000/notes';
+
+            return fetch(apiUrl)
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP Error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then((data) => {
+                    return data;
+                })
+                .catch((error) => {
+                    console.error('Error:', error);
+                    throw error; // You can handle the error as needed
+                });
+        }
+
+
+        // Call this function when your page loads to load the saved state
+        window.addEventListener('load', function () {
+            loadStateFromLocalStorage();
+        });
+
+    </script>
+</body>
+
+</html>
